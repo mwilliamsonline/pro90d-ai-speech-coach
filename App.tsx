@@ -1,112 +1,89 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function App() {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; // FIXED LINE
-  const [sessionActive, setSessionActive] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState("");
   const [transcript, setTranscript] = useState("");
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
-  useEffect(() => {
-    if (!apiKey) {
-      setErrorMessage("API Key not found in environment.");
-    }
-  }, [apiKey]);
-
-  const startLiveSession = async () => {
-    if (!apiKey) {
-      setErrorMessage("API Key not found in environment.");
-      return;
-    }
-
-    setErrorMessage("");
-    setSessionActive(true);
-
+  // Connect to backend
+  const startSession = () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
+      setError("");
+      const ws = new WebSocket("/api/realtime");
 
-      mediaRecorderRef.current = new MediaRecorder(stream);
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        chunksRef.current.push(event.data);
+      ws.onopen = () => {
+        setConnected(true);
+        ws.send(JSON.stringify({ type: "start" }));
       };
 
-      mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-        chunksRef.current = [];
+      ws.onmessage = async (evt) => {
+        const msg = evt.data;
 
-        await sendAudioToGemini(audioBlob);
+        // Handle text transcripts
+        if (typeof msg === "string") {
+          try {
+            const data = JSON.parse(msg);
+
+            if (data.text) {
+              setTranscript((t) => t + "\n" + data.text);
+            }
+
+            return;
+          } catch {
+            // Not JSON → treat as text
+            setTranscript((t) => t + "\n" + msg);
+          }
+        }
+
+        // Handle audio data
+        if (msg instanceof Blob) {
+          const arrayBuffer = await msg.arrayBuffer();
+
+          if (!audioCtxRef.current) {
+            audioCtxRef.current = new AudioContext();
+          }
+
+          const audioBuffer = await audioCtxRef.current.decodeAudioData(
+            arrayBuffer
+          );
+
+          const source = audioCtxRef.current.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioCtxRef.current.destination);
+          source.start();
+        }
       };
 
-      mediaRecorderRef.current.start(1000);
-    } catch (err) {
-      console.error(err);
-      setErrorMessage("Could not access microphone.");
+      ws.onerror = () => setError("WebSocket error");
+      ws.onclose = () => setConnected(false);
+
+      wsRef.current = ws;
+    } catch (e) {
+      console.error(e);
+      setError("Could not start session.");
     }
   };
 
   const stopSession = () => {
-    setSessionActive(false);
-    mediaRecorderRef.current?.stop();
+    wsRef.current?.close();
+    setConnected(false);
   };
 
-  const sendAudioToGemini = async (audioBlob: Blob) => {
-    if (!apiKey) return;
+  // Send mic audio to backend
+  const sendAudio = async () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
-    const base64Audio = await blobToBase64(audioBlob);
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
 
-    try {
-      const response = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=" +
-          apiKey,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    inlineData: {
-                      data: base64Audio,
-                      mimeType: "audio/webm",
-                    },
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
+    recorder.ondataavailable = (e) => {
+      wsRef.current?.send(e.data);
+    };
 
-      const data = await response.json();
-
-      if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        setTranscript((prev) => prev + "\n" + data.candidates[0].content.parts[0].text);
-      } else {
-        console.log("No usable response from Gemini:", data);
-      }
-    } catch (error) {
-      console.error("Gemini API error:", error);
-    }
-  };
-
-  const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = (reader.result as string).split(",")[1];
-        resolve(base64);
-      };
-      reader.readAsDataURL(blob);
-    });
+    recorder.start(300);
   };
 
   return (
@@ -124,7 +101,7 @@ export default function App() {
         I'm your Pro90D AI Speech Coach. We'll use neuroscience-based techniques to transform your speech.
       </p>
 
-      {errorMessage && (
+      {error && (
         <div
           style={{
             background: "#7a1f2d",
@@ -133,13 +110,16 @@ export default function App() {
             marginBottom: "20px",
           }}
         >
-          {errorMessage}
+          {error}
         </div>
       )}
 
-      {!sessionActive ? (
+      {!connected ? (
         <button
-          onClick={startLiveSession}
+          onClick={() => {
+            startSession();
+            sendAudio();
+          }}
           style={{
             padding: "14px 30px",
             borderRadius: "50px",
@@ -177,13 +157,13 @@ export default function App() {
             padding: "20px",
             borderRadius: "10px",
             whiteSpace: "pre-wrap",
+            height: "300px",
+            overflowY: "scroll",
           }}
         >
           {transcript || "Your speech will appear here..."}
         </div>
       </div>
-
-      <audio ref={audioRef} autoPlay />
     </div>
   );
 }
