@@ -1,5 +1,5 @@
-// File: /api/realtime.js
-// Vercel Edge-compatible WebSocket proxy for Gemini Realtime
+// File: api/realtime.js
+// Vercel Edge WebSocket proxy for Google Gemini Realtime API
 
 import { GoogleAIRealtime } from "@google/generative-ai/server";
 
@@ -8,22 +8,66 @@ export const config = {
 };
 
 export default async function handler(req) {
-  // 1. Check API Key
   const apiKey = process.env.GEMINI_API_KEY;
+
   if (!apiKey) {
-    return new Response(
-      JSON.stringify({ error: "Missing GEMINI_API_KEY" }),
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
+      status: 500,
+    });
   }
 
-  // 2. Create WebSocketPair (Edge Runtime)
+  // Create WebSocket pair (edge runtime)
   const pair = new WebSocketPair();
   const client = pair[0];
   const server = pair[1];
 
+  // Accept connection
   server.accept();
 
-  // 3. Create Gemini Realtime session
+  // Connect to Gemini Realtime
   const realtime = new GoogleAIRealtime({
-    apiKey
+    apiKey,
+    model: "models/gemini-2.0-flash-exp",
+  });
+
+  const session = realtime.connect({
+    sessionConfig: {
+      turnDetection: { type: "server_vad" },
+      modalities: ["text"],
+      inputModality: "audio",
+      outputModality: "text",
+    },
+  });
+
+  // === Forward messages from browser → Gemini ===
+  server.addEventListener("message", async (event) => {
+    try {
+      const message = JSON.parse(event.data);
+
+      if (message.type === "client_audio") {
+        await session.sendAudio(Buffer.from(message.data, "base64"));
+      }
+    } catch (err) {
+      console.error("Client message error:", err);
+    }
+  });
+
+  // === Forward responses Gemini → browser ===
+  session.on("response.output_text.delta", (text) => {
+    server.send(JSON.stringify({ type: "text", text }));
+  });
+
+  session.on("response.completed", () => {
+    server.send(JSON.stringify({ type: "done" }));
+  });
+
+  session.on("error", (err) => {
+    console.error("Gemini error:", err);
+    server.send(JSON.stringify({ type: "error", error: err.message }));
+  });
+
+  return new Response(null, {
+    status: 101,
+    webSocket: client,
+  });
+}
