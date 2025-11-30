@@ -1,6 +1,4 @@
-// File: api/realtime.js
-// Vercel Edge WebSocket proxy for Google Gemini Realtime API
-
+// api/realtime.js
 import { GoogleAIRealtime } from "@google/generative-ai/server";
 
 export const config = {
@@ -16,13 +14,12 @@ export default async function handler(req) {
     });
   }
 
-  // Create WS pair (browser <-> edge)
   const pair = new WebSocketPair();
   const client = pair[0];
   const server = pair[1];
+
   server.accept();
 
-  // Connect to Gemini Realtime
   const realtime = new GoogleAIRealtime({
     apiKey,
     model: "models/gemini-2.0-flash-exp",
@@ -37,29 +34,18 @@ export default async function handler(req) {
     },
   });
 
-  // Browser → Gemini audio input
   server.addEventListener("message", async (event) => {
     try {
-      let msg = event.data;
+      const message = JSON.parse(event.data);
 
-      // If client sends "start"
-      if (msg === "start") {
-        return;
-      }
-
-      // Audio should arrive as base64
-      const data = JSON.parse(msg);
-
-      if (data.type === "client_audio") {
-        const audioBytes = Buffer.from(data.data, "base64");
-        await session.sendAudio(audioBytes);
+      if (message.type === "client_audio") {
+        await session.sendAudio(Buffer.from(message.data, "base64"));
       }
     } catch (err) {
       console.error("Client message error:", err);
     }
   });
 
-  // Gemini → Browser text streaming
   session.on("response.output_text.delta", (text) => {
     server.send(JSON.stringify({ type: "text", text }));
   });
@@ -68,7 +54,6 @@ export default async function handler(req) {
     server.send(JSON.stringify({ type: "done" }));
   });
 
-  // Error handling
   session.on("error", (err) => {
     console.error("Gemini error:", err);
     server.send(JSON.stringify({ type: "error", error: err.message }));
