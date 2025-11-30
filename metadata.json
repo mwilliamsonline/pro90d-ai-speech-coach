@@ -1,0 +1,7 @@
+{
+  "name": "Pro90D AI Speech Coach",
+  "description": "A personal AI speech coach based on the Pro90D Smooth Speech System, helping you speak smoothly, calmly, and confidently through neuroscience-based techniques.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
