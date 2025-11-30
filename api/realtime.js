@@ -16,12 +16,11 @@ export default async function handler(req) {
     });
   }
 
-  // Create WebSocket pair (edge runtime)
+  // Create WebSocket pair
   const pair = new WebSocketPair();
   const client = pair[0];
   const server = pair[1];
 
-  // Accept connection
   server.accept();
 
   // Connect to Gemini Realtime
@@ -39,11 +38,10 @@ export default async function handler(req) {
     },
   });
 
-  // === Forward messages from browser → Gemini ===
+  // Browser → Gemini
   server.addEventListener("message", async (event) => {
     try {
       const message = JSON.parse(event.data);
-
       if (message.type === "client_audio") {
         await session.sendAudio(Buffer.from(message.data, "base64"));
       }
@@ -52,7 +50,7 @@ export default async function handler(req) {
     }
   });
 
-  // === Forward responses Gemini → browser ===
+  // Gemini → Browser
   session.on("response.output_text.delta", (text) => {
     server.send(JSON.stringify({ type: "text", text }));
   });
