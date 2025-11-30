@@ -14,7 +14,8 @@ export default function App() {
       setError("");
 
       // REQUIRED for Vercel WebSockets
-      const ws = new WebSocket(`wss://${window.location.host}/api/realtime`);
+      const ws = new WebSocket(`wss://${window.location.host}/functions/realtime`);
+
 
       ws.onopen = () => {
         setConnected(true);
