@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "functions/**/*.js": {
+      "runtime": "edge"
+    }
+  },
+  "routes": [
+    {
+      "src": "/functions/(.*)",
+      "dest": "/functions/$1.js"
+    }
+  ]
+}
