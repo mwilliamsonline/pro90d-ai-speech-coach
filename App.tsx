@@ -10,16 +10,17 @@ export default function App() {
 
   // Connect to backend
   const startSession = () => {
-    try {
-      setError("");
+  try {
+    setError("");
 
-      // IMPORTANT — FIXED WEBSOCKET LINE
-      const ws = new WebSocket(`wss://${window.location.host}/api/realtime`);
+    // FIXED LINE — REQUIRED FOR VERCEL
+    const ws = new WebSocket(`wss://${window.location.host}/api/realtime`);
 
-      ws.onopen = () => {
-        setConnected(true);
-        ws.send(JSON.stringify({ type: "start" }));
-      };
+    ws.onopen = () => {
+      setConnected(true);
+      ws.send(JSON.stringify({ type: "start" }));
+    };
+
 
       ws.onmessage = async (evt) => {
         const msg = evt.data;
