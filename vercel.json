@@ -1,13 +1,13 @@
 {
   "functions": {
-    "functions/**/*.js": {
+    "api/realtime.js": {
       "runtime": "edge"
     }
   },
   "routes": [
     {
       "src": "/api/realtime",
-      "dest": "functions/realtime.js"
+      "dest": "/api/realtime.js"
     }
   ]
 }
