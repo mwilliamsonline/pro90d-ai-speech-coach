@@ -1,14 +1,13 @@
 {
   "functions": {
-    "api/**/*.js": {
-      "runtime": "edge"
-    },
     "vercel/functions/**/*.js": {
       "runtime": "edge"
     }
   },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/vercel/functions/$1.js" }
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/vercel/functions/$1.js"
+    }
   ]
 }
-
