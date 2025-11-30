@@ -12,7 +12,9 @@ export default function App() {
   const startSession = () => {
     try {
       setError("");
-      const ws = new WebSocket("/api/realtime");
+
+      // IMPORTANT — FIXED WEBSOCKET LINE
+      const ws = new WebSocket(`wss://${window.location.host}/api/realtime`);
 
       ws.onopen = () => {
         setConnected(true);
@@ -38,7 +40,7 @@ export default function App() {
           }
         }
 
-        // Handle audio data
+        // Handle audio data from backend
         if (msg instanceof Blob) {
           const arrayBuffer = await msg.arrayBuffer();
 
@@ -83,87 +85,4 @@ export default function App() {
       wsRef.current?.send(e.data);
     };
 
-    recorder.start(300);
-  };
-
-  return (
-    <div
-      style={{
-        background: "radial-gradient(circle at top, #0a0f24, #02030a)",
-        minHeight: "100vh",
-        color: "white",
-        padding: "40px",
-        textAlign: "center",
-      }}
-    >
-      <h1 style={{ fontSize: "36px", fontWeight: "bold" }}>Ready to Practice?</h1>
-      <p style={{ opacity: 0.7, marginBottom: "20px" }}>
-        I'm your Pro90D AI Speech Coach. We'll use neuroscience-based techniques to transform your speech.
-      </p>
-
-      {error && (
-        <div
-          style={{
-            background: "#7a1f2d",
-            padding: "12px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {!connected ? (
-        <button
-          onClick={() => {
-            startSession();
-            sendAudio();
-          }}
-          style={{
-            padding: "14px 30px",
-            borderRadius: "50px",
-            fontSize: "18px",
-            background: "#4a4ce0",
-            border: "none",
-            cursor: "pointer",
-            color: "white",
-          }}
-        >
-          🎤 Start Live Session
-        </button>
-      ) : (
-        <button
-          onClick={stopSession}
-          style={{
-            padding: "14px 30px",
-            borderRadius: "50px",
-            fontSize: "18px",
-            background: "#e04a4a",
-            border: "none",
-            cursor: "pointer",
-            color: "white",
-          }}
-        >
-          ⏹ Stop Session
-        </button>
-      )}
-
-      <div style={{ marginTop: "40px", textAlign: "left", maxWidth: "600px", marginInline: "auto" }}>
-        <h2>Transcript</h2>
-        <div
-          style={{
-            background: "#0e1530",
-            padding: "20px",
-            borderRadius: "10px",
-            whiteSpace: "pre-wrap",
-            height: "300px",
-            overflowY: "scroll",
-          }}
-        >
-          {transcript || "Your speech will appear here..."}
-        </div>
-      </div>
-    </div>
-  );
-}
+    reco
