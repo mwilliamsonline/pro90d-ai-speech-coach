@@ -6,8 +6,8 @@
   },
   "routes": [
     {
-      "src": "/functions/(.*)",
-      "dest": "/functions/$1.js"
+      "src": "/api/realtime",
+      "dest": "functions/realtime.js"
     }
   ]
 }
