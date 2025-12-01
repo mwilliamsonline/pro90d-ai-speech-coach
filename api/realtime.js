@@ -1,28 +1,21 @@
-// api/realtime.js
 import { GoogleAIRealtime } from "@google/generative-ai/server";
 
 export const config = {
-  runtime: "edge",
+  runtime: "nodejs18.x",
 };
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
-
   if (!apiKey) {
-    return new Response(
-      JSON.stringify({ error: "Missing GEMINI_API_KEY" }),
-      { status: 500 }
-    );
+    return res.status(500).json({ error: "Missing GEMINI_API_KEY" });
   }
 
-  // Create WebSocketPair (Edge Runtime API)
-  const pair = new WebSocketPair();
-  const client = pair[0];
-  const server = pair[1];
+  if (req.headers.upgrade !== "websocket") {
+    return res.status(400).send("Expected WebSocket");
+  }
 
-  server.accept();
+  const { socket, response } = res.socket.server.ws(req);
 
-  // Gemini Realtime Connection
   const realtime = new GoogleAIRealtime({
     apiKey,
     model: "models/gemini-2.0-flash-exp",
@@ -37,39 +30,28 @@ export default async function handler(req) {
     },
   });
 
-  // Browser --> Gemini
-  server.addEventListener("message", async (event) => {
+  socket.on("message", async (raw) => {
     try {
-      const msg = JSON.parse(event.data);
-
+      const msg = JSON.parse(raw.toString());
       if (msg.type === "client_audio") {
-        // Edge runtime CANNOT use Buffer.from()
-        const audioBytes = Uint8Array.from(atob(msg.data), (c) =>
-          c.charCodeAt(0)
-        );
-        await session.sendAudio(audioBytes);
+        await session.sendAudio(Buffer.from(msg.data, "base64"));
       }
-    } catch (err) {
-      console.error("Client message error:", err);
+    } catch (e) {
+      console.error("Client message error", e);
     }
   });
 
-  // Gemini --> Browser
   session.on("response.output_text.delta", (text) => {
-    server.send(JSON.stringify({ type: "text", text }));
+    socket.send(JSON.stringify({ type: "text", text }));
   });
 
   session.on("response.completed", () => {
-    server.send(JSON.stringify({ type: "done" }));
+    socket.send(JSON.stringify({ type: "done" }));
   });
 
   session.on("error", (err) => {
-    console.error("Gemini error:", err);
-    server.send(JSON.stringify({ type: "error", error: err.message }));
+    socket.send(JSON.stringify({ type: "error", error: err.message }));
   });
 
-  return new Response(null, {
-    status: 101,
-    webSocket: client,
-  });
+  return response;
 }
