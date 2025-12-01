@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "functions": {
+    "api/realtime.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/realtime",
+      "dest": "/api/realtime.js"
+    }
+  ]
+}
+
