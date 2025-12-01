@@ -1,3 +1,7 @@
+import * as GoogleServer from "@google/generative-ai/server";
+console.log("AVAILABLE EXPORTS:", GoogleServer);
+
+
 import express from "express";
 import { WebSocketServer } from "ws";
 import { GoogleAIRealtimeClient } from "@google/generative-ai/server";
