@@ -1,12 +1,10 @@
-// api/realtime.js
 import { GoogleAIRealtime } from "@google/generative-ai/server";
 
-// Tell Vercel this is a Node.js (not Edge) function
 export const config = {
-  runtime: "nodejs",
+  runtime: "edge",
 };
 
-export default async function handler(request) {
+export default async function handler(req) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -16,20 +14,13 @@ export default async function handler(request) {
     );
   }
 
-  // WebSocket upgrade check
-  const upgradeHeader = request.headers.get("upgrade");
-  if (upgradeHeader !== "websocket") {
-    return new Response("Expected WebSocket upgrade", { status: 400 });
-  }
-
-  // Create the WebSocket pair
+  // Create WebSocket Pair
   const pair = new WebSocketPair();
   const client = pair[0];
   const server = pair[1];
 
   server.accept();
 
-  // Connect to Gemini Realtime
   const realtime = new GoogleAIRealtime({
     apiKey,
     model: "models/gemini-2.0-flash-exp",
@@ -48,6 +39,7 @@ export default async function handler(request) {
   server.addEventListener("message", async (event) => {
     try {
       const message = JSON.parse(event.data);
+
       if (message.type === "client_audio") {
         await session.sendAudio(Buffer.from(message.data, "base64"));
       }
@@ -66,7 +58,6 @@ export default async function handler(request) {
   });
 
   session.on("error", (err) => {
-    console.error("Gemini error:", err);
     server.send(JSON.stringify({ type: "error", error: err.message }));
   });
 
