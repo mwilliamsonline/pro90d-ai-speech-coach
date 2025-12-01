@@ -1,17 +1,16 @@
-// server.js — Express server + Gemini Realtime WebSocket proxy
-
 import express from "express";
 import { WebSocketServer } from "ws";
-import { GoogleGenerativeAIWebSocket } from "@google/generative-ai/server";
-
+import { GoogleAIRealtimeClient } from "@google/generative-ai/server";
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Express server
 const server = app.listen(port, () => {
   console.log("Server running on port", port);
 });
 
+// WebSocket server
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", async (socket) => {
@@ -24,12 +23,14 @@ wss.on("connection", async (socket) => {
     return;
   }
 
-  const realtime = new GoogleGenerativeAIWebSocket({
-  apiKey,
-  model: "models/gemini-2.0-flash-exp",
-});
+  // Create client
+  const client = new GoogleAIRealtimeClient({
+    apiKey,
+  });
 
-  const session = realtime.connect({
+  // Create realtime session
+  const session = client.startRealtimeConnection({
+    model: "models/gemini-2.0-flash-exp",
     sessionConfig: {
       turnDetection: { type: "server_vad" },
       modalities: ["text"],
@@ -38,6 +39,7 @@ wss.on("connection", async (socket) => {
     },
   });
 
+  // Receive audio from client
   socket.on("message", async (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
@@ -45,10 +47,11 @@ wss.on("connection", async (socket) => {
         await session.sendAudio(Buffer.from(msg.data, "base64"));
       }
     } catch (e) {
-      console.error(e);
+      console.error("Message error:", e);
     }
   });
 
+  // Stream text back to client
   session.on("response.output_text.delta", (text) => {
     socket.send(JSON.stringify({ type: "text", text }));
   });
@@ -58,7 +61,7 @@ wss.on("connection", async (socket) => {
   });
 
   session.on("error", (err) => {
-    console.error(err);
+    console.error("Gemini error:", err);
     socket.send(JSON.stringify({ type: "error", error: err.message }));
   });
 
