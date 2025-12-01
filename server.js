@@ -25,9 +25,9 @@ wss.on("connection", async (socket) => {
   }
 
   const realtime = new GoogleGenerativeAIWebSocket({
-    apiKey,
-    model: "models/gemini-2.0-flash-exp",
-  });
+  apiKey,
+  model: "models/gemini-2.0-flash-exp",
+});
 
   const session = realtime.connect({
     sessionConfig: {
