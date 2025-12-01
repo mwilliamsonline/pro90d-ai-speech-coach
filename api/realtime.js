@@ -1,25 +1,21 @@
-// api/realtime.js
 import { GoogleAIRealtime } from "@google/generative-ai/server";
 
-export const config = {
-  runtime: "edge",
-};
-
-export default async function handler(req) {
+export default function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
-      status: 500,
-    });
+    return res.status(500).json({ error: "Missing GEMINI_API_KEY" });
   }
 
-  const pair = new WebSocketPair();
-  const client = pair[0];
-  const server = pair[1];
+  // Must upgrade the connection to WebSocket
+  if (req.headers.upgrade !== "websocket") {
+    return res.status(400).send("Expected WebSocket upgrade");
+  }
 
-  server.accept();
+  // Upgrade to WebSocket
+  const { socket, response } = res.socket.server.ws(req);
 
+  // Connect to Gemini Realtime
   const realtime = new GoogleAIRealtime({
     apiKey,
     model: "models/gemini-2.0-flash-exp",
@@ -34,33 +30,32 @@ export default async function handler(req) {
     },
   });
 
-  server.addEventListener("message", async (event) => {
+  // Handle messages from browser
+  socket.on("message", async (raw) => {
     try {
-      const message = JSON.parse(event.data);
+      const msg = JSON.parse(raw.toString());
 
-      if (message.type === "client_audio") {
-        await session.sendAudio(Buffer.from(message.data, "base64"));
+      if (msg.type === "client_audio") {
+        await session.sendAudio(Buffer.from(msg.data, "base64"));
       }
     } catch (err) {
       console.error("Client message error:", err);
     }
   });
 
+  // Gemini → Browser (text streaming)
   session.on("response.output_text.delta", (text) => {
-    server.send(JSON.stringify({ type: "text", text }));
+    socket.send(JSON.stringify({ type: "text", text }));
   });
 
   session.on("response.completed", () => {
-    server.send(JSON.stringify({ type: "done" }));
+    socket.send(JSON.stringify({ type: "done" }));
   });
 
   session.on("error", (err) => {
     console.error("Gemini error:", err);
-    server.send(JSON.stringify({ type: "error", error: err.message }));
+    socket.send(JSON.stringify({ type: "error", error: err.message }));
   });
 
-  return new Response(null, {
-    status: 101,
-    webSocket: client,
-  });
+  return response; // MUST return the WebSocket upgrade response
 }
