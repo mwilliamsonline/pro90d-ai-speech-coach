@@ -15,14 +15,14 @@ export default async function handler(req) {
     );
   }
 
-  // Create WebSocketPair
+  // Create WebSocketPair (Edge Runtime API)
   const pair = new WebSocketPair();
   const client = pair[0];
   const server = pair[1];
 
   server.accept();
 
-  // Connect to Gemini Realtime
+  // Gemini Realtime Connection
   const realtime = new GoogleAIRealtime({
     apiKey,
     model: "models/gemini-2.0-flash-exp",
@@ -37,19 +37,24 @@ export default async function handler(req) {
     },
   });
 
-  // Browser → Gemini
+  // Browser --> Gemini
   server.addEventListener("message", async (event) => {
     try {
-      const message = JSON.parse(event.data);
-      if (message.type === "client_audio") {
-        await session.sendAudio(Buffer.from(message.data, "base64"));
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === "client_audio") {
+        // Edge runtime CANNOT use Buffer.from()
+        const audioBytes = Uint8Array.from(atob(msg.data), (c) =>
+          c.charCodeAt(0)
+        );
+        await session.sendAudio(audioBytes);
       }
     } catch (err) {
       console.error("Client message error:", err);
     }
   });
 
-  // Gemini → Browser
+  // Gemini --> Browser
   session.on("response.output_text.delta", (text) => {
     server.send(JSON.stringify({ type: "text", text }));
   });
